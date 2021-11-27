@@ -1,2 +1,2 @@
 # schach.rs
-learnign rust and druid
+learning rust and druid
