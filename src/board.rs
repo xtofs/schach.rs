@@ -1,10 +1,9 @@
 use druid::{Data, Lens};
+use log::info;
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
 
 use crate::{Color, Dir, Kind, Move, Piece, Square};
-
-// https://en.wikipedia.org/wiki/Chess_piece
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Data)]
 pub struct Castling {
@@ -14,25 +13,24 @@ pub struct Castling {
     pub black_queen_side: bool,
 }
 
+// https://en.wikipedia.org/wiki/Chess#Setup
+// https://en.wikipedia.org/wiki/Rules_of_chess
+// https://en.wikipedia.org/wiki/Chessboard
+// https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
+
 #[derive(PartialEq, Eq, Clone, Data, Lens)]
 /// square board of eight rows (called ranks) and eight columns (called files).
-/// https://en.wikipedia.org/wiki/Chess#Setup
 pub struct Board {
-    pub(crate) pieces: [[Option<Piece>; 8]; 8],
-    active: Color,
+    pieces: [[Option<Piece>; 8]; 8],
+    pub active: Color,
     castling: Castling,
     en_passant: Option<Square>,
     halfmove_clock: u32,
-    fullmove_number: u32,
+    pub fullmove_number: u32,
 }
 
 impl Castling {
-    fn new(
-        black_king_side: bool,
-        white_king_side: bool,
-        black_queen_side: bool,
-        white_queen_side: bool,
-    ) -> Castling {
+    fn new(black_king_side: bool, white_king_side: bool, black_queen_side: bool, white_queen_side: bool) -> Castling {
         Self {
             black_king_side,
             white_king_side,
@@ -59,8 +57,7 @@ impl IndexMut<Square> for Board {
 impl Board {
     pub fn default() -> Self {
         Board {
-            pieces: Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")
-                .expect("syntax error in initial board"),
+            pieces: Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").expect("syntax error in initial board"),
             active: Color::White,
             castling: Castling::new(true, true, true, true),
             en_passant: None,
@@ -134,25 +131,48 @@ impl Board {
         Some(pieces)
     }
 
-    pub fn apply(&mut self, mv: &Move) {
-        self.en_passant = None;
-        match *mv {
-            Move::Move(p, s, t) => {
-                self[s] = None;
-                self[t] = Some(p);
-                if p.kind == Kind::Pawn && 2 == (s.rank - t.rank).abs() {
-                    self.en_passant = Some(Square::new((s.rank + t.rank).abs() / 2, s.file));
-                    dbg!(self.en_passant);
+    fn update_en_passant_elegibility(&mut self, mv: &Move) {
+        let it = match mv {
+            Move::Move(Piece { kind: Kind::Pawn, color: _ }, orig, dest) | Move::Take(Piece { kind: Kind::Pawn, color: _ }, orig, dest, _) => {
+                // distance is 2?
+                if (orig.rank - dest.rank).abs() == 2 {
+                    // the square on the same file and rank between origin and destination
+                    Some(Square::new(orig.file, (orig.rank + dest.rank).abs() / 2))
+                } else {
+                    None
                 }
             }
-            Move::Take(p, s, t, _k) => {
-                // self.captures.push(_k);
-                self[s] = None;
-                self[t] = Some(p);
-                if p.kind == Kind::Pawn && 2 == (s.rank - t.rank).abs() {
-                    self.en_passant = Some(Square::new((s.rank + t.rank).abs() / 2, s.file));
-                    dbg!(self.en_passant);
-                }
+
+            _ => None,
+        };
+        info!("en passant elegibility {:#?}", it.map_or("-".to_string(), |sq| format!("{}", sq)));
+        self.en_passant = it;
+    }
+
+    pub fn apply(&mut self, mv: &Move) {
+        assert_eq!(self.active, mv.player());
+
+        self.update_en_passant_elegibility(mv);
+        self.active = -self.active;
+        self.halfmove_clock += 1;
+        self.fullmove_number += if mv.player() == Color::Black { 1 } else { 0 };
+
+        match *mv {
+            Move::Move(piece, orig, dest) => {
+                self[orig] = None;
+                self[dest] = Some(piece);
+            }
+            Move::Take(piece, orig, dest, _k) => {
+                eprintln!("captured {:?}", self[dest]);
+                self[orig] = None;
+                self[dest] = Some(piece);
+            }
+            Move::EnPassant(piece, orig, dest) => {
+                let passed = Square::new(orig.file, dest.rank);
+                eprintln!("captured en passant {:?}", self[passed]);
+                self[orig] = None;
+                self[dest] = Some(piece);
+                self[passed] = None;
             }
         }
     }
@@ -205,16 +225,33 @@ impl Board {
         let fwd = if piece.color == Color::White { -1 } else { 1 };
         let straight_fwd = Dir::new(0, fwd);
 
-        // take diagonally
-        for dest in valid_squares(&[origin + Dir(fwd, fwd), origin + Dir(fwd, -fwd)]) {
+        // take diagonally or en-passant
+        for dest in valid_squares(&[origin + Dir(1, fwd), origin + Dir(-1, fwd)]) {
             match self[dest] {
                 Some(take) if take.color == opponent => {
-                    let mv = Move::Take(piece, origin, dest, take.kind);
-                    result.push(mv);
+                    result.push(Move::Take(piece, origin, dest, take.kind));
+                }
+                None if let Some(dest) = self.en_passant => {
+                    if self[dest] == None
+                    {
+                        result.push(Move::EnPassant(piece, origin, dest));
+                    }
                 }
                 _ => {}
             }
         }
+
+        // en passant
+        // self.en_passant
+        //  for dest in valid_squares(&[origin + Dir(1, fwd), origin + Dir(-1, fwd)]) {
+        //     match self[dest] {
+        //         Some(take) if take.color == opponent => {
+        //             result.push(Move::Take(piece, origin, dest, take.kind));
+        //         }
+        //         _ => {}
+        //     }
+        // }
+
         // move straight
         let starting_rank = if piece.color == Color::White { 6 } else { 1 };
         // initial move straight
@@ -288,14 +325,7 @@ impl Board {
         result
     }
 
-    fn add_moves_in_dir(
-        &self,
-        result: &mut Vec<Move>,
-        dir: Dir,
-        piece: Piece,
-        start: Square,
-        n: i32,
-    ) {
+    fn add_moves_in_dir(&self, result: &mut Vec<Move>, dir: Dir, piece: Piece, start: Square, n: i32) {
         let opponent = -piece.color;
         for target in start.in_direction(dir, n) {
             match self[target] {
@@ -331,7 +361,6 @@ fn valid_squares(items: &[Square]) -> impl Iterator<Item = Square> + '_ {
     items.iter().filter(|&item| item.valid()).copied()
 }
 
-
 pub mod dirs {
     use super::Dir;
 
@@ -348,14 +377,5 @@ pub mod dirs {
     pub const DIRECTION_DIAG: [Dir; 4] = [NE, SE, NW, SW];
     pub const DIRECTION_BOTH: [Dir; 8] = [N, S, E, W, NE, SE, NW, SW];
 
-    pub const DIRECTION_KNIGHT: [Dir; 8] = [
-        Dir(2, 1),
-        Dir(1, 2),
-        Dir(-1, 2),
-        Dir(-2, 1),
-        Dir(-2, -1),
-        Dir(-1, -2),
-        Dir(1, -2),
-        Dir(2, -1),
-    ];
+    pub const DIRECTION_KNIGHT: [Dir; 8] = [Dir(2, 1), Dir(1, 2), Dir(-1, 2), Dir(-2, 1), Dir(-2, -1), Dir(-1, -2), Dir(1, -2), Dir(2, -1)];
 }

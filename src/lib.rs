@@ -1,3 +1,5 @@
+#![allow(incomplete_features)]
+#![feature(if_let_guard)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -6,10 +8,12 @@ mod board;
 mod board_widget;
 mod color;
 mod dir;
+mod grid;
 mod kind;
 mod moves;
 mod piece;
 mod square;
+mod valuation;
 
 pub use crate::board::*;
 pub use crate::board_widget::*;

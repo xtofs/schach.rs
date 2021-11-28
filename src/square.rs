@@ -32,16 +32,10 @@ impl Square {
         let file = chars[0];
         let rank = chars[1];
         if !('a'..='h').contains(&file) {
-            return Err(format!(
-                "'{}' doesn't match /[a-h][1-9]/. 1st char is {}",
-                an, file
-            ));
+            return Err(format!("'{}' doesn't match /[a-h][1-9]/. 1st char is {}", an, file));
         }
         if !('1'..='8').contains(&rank) {
-            return Err(format!(
-                "'{}' doesn't match /[a-h][1-9]/. 2nd char is {}",
-                an, rank
-            ));
+            return Err(format!("'{}' doesn't match /[a-h][1-9]/. 2nd char is {}", an, rank));
         }
         let file = 0 + ((file as i32) - ('a' as i32)); // file - 'a'
         let rank = 8 - ((rank as i32) - ('0' as i32)); // 8 - (c - '0')
@@ -50,15 +44,12 @@ impl Square {
     }
 
     pub fn offset_by<'a>(&'a self, directions: &'a [Dir]) -> impl Iterator<Item = Square> + 'a {
-        directions
-            .iter()
-            .map(move |d| *self + *d)
-            .filter(|t| t.valid())
+        directions.iter().map(move |d| *self + *d).filter(|t| t.valid())
     }
 
     // pub fn in_direction<'a>(&'a self, dir: Dir, n: i32) -> impl Iterator<Item = Square> + 'a {
     pub fn in_direction(&self, dir: Dir, n: i32) -> impl Iterator<Item = Square> + '_ {
-            (1..=n).map(move |dist| *self + (dir * dist)).filter(|t| t.valid())
+        (1..=n).map(move |dist| *self + (dir * dist)).filter(|t| t.valid())
     }
 }
 
