@@ -7,7 +7,7 @@ trait Valuation {
 struct DefaultValuation();
 
 impl Valuation for DefaultValuation {
-    fn value(&self, board: &Board, kind: Kind) -> f32 {
+    fn value(&self, _board: &Board, kind: Kind) -> f32 {
         match kind {
             Kind::Pawn => 1.0,
             Kind::Knight => 3.0,
@@ -22,7 +22,7 @@ impl Valuation for DefaultValuation {
 struct SarrattValuation();
 
 impl SarrattValuation {
-    fn is_endgame(board: &Board) -> bool {
+    fn is_endgame(_board: &Board) -> bool {
         false
     }
 }

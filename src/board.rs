@@ -5,14 +5,6 @@ use std::ops::{Index, IndexMut};
 
 use crate::{Color, Dir, Kind, Move, Piece, Square};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Data)]
-pub struct Castling {
-    pub white_king_side: bool,
-    pub white_queen_side: bool,
-    pub black_king_side: bool,
-    pub black_queen_side: bool,
-}
-
 // https://en.wikipedia.org/wiki/Chess#Setup
 // https://en.wikipedia.org/wiki/Rules_of_chess
 // https://en.wikipedia.org/wiki/Chessboard
@@ -29,13 +21,21 @@ pub struct Board {
     pub fullmove_number: u32,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Data)]
+pub struct Castling {
+    pub white_king_side: bool,
+    pub white_queen_side: bool,
+    pub black_king_side: bool,
+    pub black_queen_side: bool,
+}
+
 impl Castling {
-    fn new(black_king_side: bool, white_king_side: bool, black_queen_side: bool, white_queen_side: bool) -> Castling {
+    fn new() -> Castling {
         Self {
-            black_king_side,
-            white_king_side,
-            black_queen_side,
-            white_queen_side,
+            black_king_side: true,
+            white_king_side: true,
+            black_queen_side: true,
+            white_queen_side: true,
         }
     }
 }
@@ -59,7 +59,7 @@ impl Board {
         Board {
             pieces: Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").expect("syntax error in initial board"),
             active: Color::White,
-            castling: Castling::new(true, true, true, true),
+            castling: Castling::new(),
             en_passant: None,
             halfmove_clock: 0,
             fullmove_number: 0,
@@ -75,18 +75,14 @@ impl Board {
     // Halfmove clock: The number of halfmoves since the last capture or pawn advance, used for the fifty-move rule.[7]
     // Fullmove number: The number of the full move. It starts at 1, and is incremented after Black's move.
     pub fn from_fen(str: &str) -> Option<Self> {
-        let mut sections = str.split_ascii_whitespace();
-        let pieces = Board::parse_fen(sections.next()?)?;
-        let active = Board::parse_active(sections.next()?)?;
+        let mut board = Board::default();
 
-        Some(Board {
-            pieces,
-            active,
-            castling: Castling::new(true, true, true, true),
-            en_passant: None,
-            halfmove_clock: 0,
-            fullmove_number: 0,
-        })
+        let mut sections = str.split_ascii_whitespace();
+        board.pieces = Board::parse_fen(sections.next()?)?;
+        board.active = Board::parse_active(sections.next()?)?;
+        board.castling = Board::parse_castling_availability(sections.next()?)?;
+
+        Some(board)
     }
 
     // square board of eight rows (called ranks) and eight columns (called files).
@@ -162,17 +158,26 @@ impl Board {
                 self[orig] = None;
                 self[dest] = Some(piece);
             }
-            Move::Take(piece, orig, dest, _k) => {
+            Move::Take(piece, orig, dest, _kind) => {
                 eprintln!("captured {:?}", self[dest]);
+
                 self[orig] = None;
                 self[dest] = Some(piece);
             }
             Move::EnPassant(piece, orig, dest) => {
-                let passed = Square::new(orig.file, dest.rank);
+                let passed = Square::new(dest.file, orig.rank);
+
                 eprintln!("captured en passant {:?}", self[passed]);
+
                 self[orig] = None;
                 self[dest] = Some(piece);
                 self[passed] = None;
+            }
+            Move::Castle(_piece, king_src, kind_dst, rook_src, rook_dst) => {
+                self[rook_dst] = self[rook_src];
+                self[rook_src] = None;
+                self[kind_dst] = self[king_src];
+                self[king_src] = None;
             }
         }
     }
@@ -231,28 +236,14 @@ impl Board {
                 Some(take) if take.color == opponent => {
                     result.push(Move::Take(piece, origin, dest, take.kind));
                 }
-                None if let Some(dest) = self.en_passant => {
-                    if self[dest] == None
-                    {
-                        result.push(Move::EnPassant(piece, origin, dest));
-                    }
+                // dest is empty and the en_passant target
+                None if self.en_passant == Some(dest) => {
+                    result.push(Move::EnPassant(piece, origin, dest));
                 }
                 _ => {}
             }
         }
 
-        // en passant
-        // self.en_passant
-        //  for dest in valid_squares(&[origin + Dir(1, fwd), origin + Dir(-1, fwd)]) {
-        //     match self[dest] {
-        //         Some(take) if take.color == opponent => {
-        //             result.push(Move::Take(piece, origin, dest, take.kind));
-        //         }
-        //         _ => {}
-        //     }
-        // }
-
-        // move straight
         let starting_rank = if piece.color == Color::White { 6 } else { 1 };
         // initial move straight
         if origin.rank == starting_rank {
@@ -280,6 +271,7 @@ impl Board {
         //         }
         //     }
         // }
+
         result
     }
 
@@ -296,13 +288,62 @@ impl Board {
 
     fn get_king_moves(&self, square: Square, piece: Piece) -> Vec<Move> {
         debug_assert!(piece.kind == Kind::King);
-        // let opponent = -piece.color;
         let mut result = vec![];
 
         for &dir in &dirs::DIRECTION_BOTH {
             self.add_moves_in_dir(&mut result, dir, piece, square, 1);
         }
+
+        // Castling is performed on the kingside or queenside with the rook on the same rank.[5]
+        // Neither the king nor the chosen rook has previously moved.
+        // There are no pieces between the king and the chosen rook.
+        // One may not castle out of, through, or into check.
+        if self.can_castle_king_side() {}
+        {
+            self.castle(piece, square.rank, 6, 6, 5).map(|mv| result.push(mv));
+        }
+        if self.can_castle_queen_side() {}
+        {
+            self.castle(piece, square.rank, 2, 0, 3).map(|mv| result.push(mv));
+        }
         result
+    }
+
+    fn castle(&self, piece: Piece, rank: i32, king_dst_file: i32, rook_src_file: i32, rook_dst_file: i32) -> Option<Move> {
+        const KING_SRC_FILE: i32 = 4;
+        debug_assert_eq!((KING_SRC_FILE - king_dst_file).abs(), 2);
+        let opponent = -self.active;
+
+        let k_src = Square::new(KING_SRC_FILE, rank);
+        let k_thr = Square::new((king_dst_file + KING_SRC_FILE) / 2, rank);
+        let k_dst = Square::new(king_dst_file, rank);
+        let r_src = Square::new(rook_src_file, rank);
+        let r_dst = Square::new(rook_dst_file, rank);
+        if !self.is_under_attack(k_src, opponent) && !self.is_under_attack(k_dst, opponent) && !self.is_under_attack(k_thr, opponent) {
+            let mc = Move::Castle(piece, k_src, k_dst, r_src, r_dst);
+            eprintln!("casteling {:?} possible", mc);
+            return Some(mc);
+        }
+        None
+    }
+
+    fn is_under_attack(&self, _square: Square, _by: Color) -> bool {
+        false
+    }
+
+    fn can_castle_king_side(&self) -> bool {
+        if self.active == Color::Black {
+            self.castling.black_king_side
+        } else {
+            self.castling.white_king_side
+        }
+    }
+    fn can_castle_queen_side(&self) -> bool {
+        if self.active == Color::Black {
+            self.castling.black_queen_side
+        } else {
+            self.castling.white_queen_side
+        }
     }
 
     fn get_rook_moves(&self, square: Square, piece: Piece) -> Vec<Move> {
@@ -354,6 +395,15 @@ impl Board {
         } else {
             None
         }
+    }
+
+    fn parse_castling_availability(castling: &str) -> Option<Castling> {
+        Some(Castling {
+            white_king_side: castling.contains('K'),
+            white_queen_side: castling.contains('Q'),
+            black_king_side: castling.contains('k'),
+            black_queen_side: castling.contains('q'),
+        })
     }
 }
 

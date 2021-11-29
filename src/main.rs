@@ -17,17 +17,22 @@ fn main() {
         .set_window_state(druid::WindowState::RESTORED);
 
     // create the initial app state
-    let initial_state = Board::default();
+    // let initial_state = Board::default();
+    let initial_state = Board::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq").unwrap();
 
     // start the application
     AppLauncher::with_window(main_window)
+        // .use_simple_logger()
         .launch(initial_state)
         .expect("Failed to launch application");
 }
 
 fn build_root_widget() -> impl Widget<Board> {
     // a label that will determine its text based on the current app data.
-    let label = Label::new(|data: &Board, _env: &druid::Env| format!("{:?}'s move, move {}", data.active, data.fullmove_number + 1));
+    let label = Label::new(|data: &Board, _env: &druid::Env| format!("{:?}'s move ({})", data.active, data.fullmove_number + 1));
+
+    // let white_captures = Label::new(|board: &Board, _env: &druid::Env| format!("captures: {}", board.white_captures));
+
     // // a textbox that modifies `name`.
     // let textbox = TextBox::new()
     //     .with_placeholder("Who are we greeting?")

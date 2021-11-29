@@ -1,9 +1,9 @@
 use druid::piet::d2d::Bitmap;
 use druid::piet::{ImageFormat, InterpolationMode};
-use druid::{Env, MouseButton, Point, Rect, RenderContext, Size, Widget};
+use druid::{Env, Rect, RenderContext, Size, Widget};
 
 use crate::grid::Grid;
-use crate::{board, color, Board, Color, Kind, Move, Piece, Square};
+use crate::{Board, Color, Kind, Move, Piece, Square};
 
 pub struct BoardWidget {
     selected: Option<(Square, Vec<Move>)>,
@@ -27,11 +27,12 @@ impl BoardWidget {
         None
     }
 
-    fn move_color(mv: &Move) -> &druid::Color {
+    pub fn move_color(mv: &Move) -> &druid::Color {
         match mv {
             Move::Move(_, _, _) => theme::MOVE,
             Move::Take(_, _, _, _) => theme::TAKE,
             Move::EnPassant(_, _, _) => theme::EN_PASSANT,
+            Move::Castle(_, _, _, _, _) => theme::CASTLE,
         }
     }
 }
@@ -58,7 +59,7 @@ impl Widget<Board> for BoardWidget {
                 ctx.stroke(rect, theme::SELECTED, 5.0);
 
                 for mv in moves {
-                    let c = Self::move_color(&mv);
+                    let c = Self::move_color(mv);
                     let rect = grid.rect(mv.destination()).inflate(-5.0, -5.0);
                     ctx.stroke(rect, c, 5.0);
                 }
@@ -84,19 +85,22 @@ impl Widget<Board> for BoardWidget {
                 let (x, y) = (mouse.pos.x / self.size.width * 8.0, mouse.pos.y / self.size.height * 8.0);
                 let square = Square::new(x as i32, y as i32);
 
-                if let Some(mv) = self.find_selected_move(square) {
-                    // click on a square of the move list of the selected piece?
+                let next = if let Some(mv) = self.find_selected_move(square) {
+                    // click on a square of the move list of the selected piece
                     board.apply(mv);
-                    self.selected = None;
+                    None
                 } else if let Some(Piece { color, kind: _ }) = board[square] {
                     // click on a square with a piece?
                     if color == board.active {
                         let moves = board.get_valid_moves(square);
-                        self.selected = Some((square, moves));
+                        Some((square, moves))
+                    } else {
+                        None
                     }
                 } else {
-                    self.selected = None;
-                }
+                    None
+                };
+                self.selected = next;
 
                 // if mouse.button == MouseButton::Right {
                 //     // is a piece selected and this is a click on a square of the move list?
@@ -145,9 +149,10 @@ mod theme {
     pub const DARK: &Color = &Color::rgb8(192, 192, 192);
     pub const LINE: &Color = &Color::rgb8(96, 96, 96);
     pub const SELECTED: &Color = &Color::rgb8(64, 255, 0);
+    pub const MOVE: &Color = &Color::rgb8(255, 255, 0);
     pub const TAKE: &Color = &Color::rgb8(255, 0, 0);
     pub const EN_PASSANT: &Color = &Color::rgb8(255, 128, 0);
-    pub const MOVE: &Color = &Color::rgb8(255, 255, 0);
+    pub const CASTLE: &Color = &Color::rgb8(255, 192, 0);
 }
 
 struct Sprites<'x, 'a, 'b, 'c> {

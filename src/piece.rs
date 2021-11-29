@@ -8,7 +8,7 @@ use crate::{Color, Kind};
 
 /// a chess piece identified by it's color and kind
 /// https://en.wikipedia.org/wiki/Chess_piece
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Data, Lens)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Data, Lens)]
 pub struct Piece {
     pub color: Color,
     pub kind: Kind,
