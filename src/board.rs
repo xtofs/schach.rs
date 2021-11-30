@@ -4,15 +4,8 @@ use std::ops::{Index, IndexMut};
 
 use crate::{Color, Dir, Kind, Move, Piece, Square};
 
-// https://en.wikipedia.org/wiki/Chess_piece
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Data)]
-pub struct Castling {
-    pub white_king_side: bool,
-    pub white_queen_side: bool,
-    pub black_king_side: bool,
-    pub black_queen_side: bool,
-}
+mod casteling;
+use casteling::*;
 
 #[derive(PartialEq, Eq, Clone, Data, Lens)]
 /// square board of eight rows (called ranks) and eight columns (called files).
@@ -24,22 +17,6 @@ pub struct Board {
     en_passant: Option<Square>,
     halfmove_clock: u32,
     fullmove_number: u32,
-}
-
-impl Castling {
-    fn new(
-        black_king_side: bool,
-        white_king_side: bool,
-        black_queen_side: bool,
-        white_queen_side: bool,
-    ) -> Castling {
-        Self {
-            black_king_side,
-            white_king_side,
-            black_queen_side,
-            white_queen_side,
-        }
-    }
 }
 
 impl Index<Square> for Board {
@@ -62,7 +39,7 @@ impl Board {
             pieces: Board::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")
                 .expect("syntax error in initial board"),
             active: Color::White,
-            castling: Castling::new(true, true, true, true),
+            castling: Castling::default(),
             en_passant: None,
             halfmove_clock: 0,
             fullmove_number: 0,
@@ -79,13 +56,15 @@ impl Board {
     // Fullmove number: The number of the full move. It starts at 1, and is incremented after Black's move.
     pub fn from_fen(str: &str) -> Option<Self> {
         let mut sections = str.split_ascii_whitespace();
+
         let pieces = Board::parse_fen(sections.next()?)?;
         let active = Board::parse_active(sections.next()?)?;
+        let castling = Castling::from_fen(sections.next()?)?;
 
         Some(Board {
             pieces,
             active,
-            castling: Castling::new(true, true, true, true),
+            castling,
             en_passant: None,
             halfmove_clock: 0,
             fullmove_number: 0,
@@ -330,7 +309,6 @@ impl Board {
 fn valid_squares(items: &[Square]) -> impl Iterator<Item = Square> + '_ {
     items.iter().filter(|&item| item.valid()).copied()
 }
-
 
 pub mod dirs {
     use super::Dir;
