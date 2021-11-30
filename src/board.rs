@@ -1,5 +1,4 @@
 use druid::{Data, Lens};
-use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
 
 use crate::{Color, Dir, Kind, Move, Piece, Square};
