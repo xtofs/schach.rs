@@ -5,6 +5,8 @@ use std::ops::{Index, IndexMut};
 
 mod casteling;
 use casteling::*;
+mod captures;
+use captures::*;
 
 // https://en.wikipedia.org/wiki/Chess#Setup
 // https://en.wikipedia.org/wiki/Rules_of_chess
@@ -20,6 +22,8 @@ pub struct Board {
     pub en_passant: Option<Square>,
     pub halfmove_clock: u32,
     pub fullmove_number: u32,
+
+    pub captures: Captures,
 }
 
 impl Index<Square> for Board {
@@ -45,6 +49,7 @@ impl Board {
             en_passant: None,
             halfmove_clock: 0,
             fullmove_number: 0,
+            captures: Default::default(),
         }
     }
 
@@ -190,10 +195,25 @@ impl Board {
 
         self.update_en_passant_elegibility(mv);
         self.update_castling_elegibility(mv);
+        self.update_captures(mv.kind);
 
         self.halfmove_clock += 1;
         self.fullmove_number += if mv.piece.color == Color::Black { 1 } else { 0 };
         self.active = -self.active;
+    }
+
+    fn update_captures(&mut self, kind: MoveKind) {
+        let opponent = -self.active;
+
+        match kind {
+            MoveKind::Take(kind) => {
+                self.captures[opponent][kind] += 1;
+            }
+            MoveKind::EnPassant() => {
+                self.captures[opponent][Kind::Pawn] += 1;
+            }
+            _ => {}
+        }
     }
 
     /// get the valid moves of the piece on given square

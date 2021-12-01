@@ -1,6 +1,7 @@
 use druid::piet::d2d::Bitmap;
 use druid::piet::{ImageFormat, InterpolationMode};
 use druid::{Env, Rect, RenderContext, Size, Widget};
+use log::trace;
 
 use crate::grid::Grid;
 use crate::{Board, Color, Kind, Move, MoveKind, Piece, Square};
@@ -127,13 +128,14 @@ impl Widget<Board> for BoardWidget {
     }
 
     fn layout(&mut self, _ctx: &mut druid::LayoutCtx, bc: &druid::BoxConstraints, _data: &Board, _env: &Env) -> druid::Size {
-        let size = if bc.is_width_bounded() && bc.is_height_bounded() {
-            let size = Size::new(1328.0, 1328.0);
-            bc.constrain(size)
-        } else {
-            bc.max()
-        };
-        self.size = Size::new(size.min_side(), size.min_side());
+        trace!("{:?}", bc);
+        // let size = if bc.is_width_bounded() && bc.is_height_bounded() {
+        //     let size = Size::new(1328.0, 1328.0);
+        //     bc.constrain(size)
+        // } else {
+        //     bc.max()
+        // };
+        self.size = Size::new(500.0, 500.0);
         self.size
     }
 
