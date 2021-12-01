@@ -3,7 +3,7 @@ use druid::piet::{ImageFormat, InterpolationMode};
 use druid::{Env, Rect, RenderContext, Size, Widget};
 
 use crate::grid::Grid;
-use crate::{Board, Color, Kind, Move, Piece, Square};
+use crate::{Board, Color, Kind, Move, MoveKind, Piece, Square};
 
 pub struct BoardWidget {
     selected: Option<(Square, Vec<Move>)>,
@@ -20,7 +20,7 @@ impl BoardWidget {
 
     fn find_selected_move(&self, square: Square) -> Option<&Move> {
         if let Some((_, moves)) = &self.selected {
-            if let Some(mv) = moves.iter().find(|mv| mv.destination() == square) {
+            if let Some(mv) = moves.iter().find(|mv| mv.target == square) {
                 return Some(mv);
             }
         }
@@ -28,11 +28,11 @@ impl BoardWidget {
     }
 
     pub fn move_color(mv: &Move) -> &druid::Color {
-        match mv {
-            Move::Move(_, _, _) => theme::MOVE,
-            Move::Take(_, _, _, _) => theme::TAKE,
-            Move::EnPassant(_, _, _) => theme::EN_PASSANT,
-            Move::Castle(_, _, _, _, _) => theme::CASTLE,
+        match mv.kind {
+            MoveKind::Move() => theme::MOVE,
+            MoveKind::Take(_) => theme::TAKE,
+            MoveKind::EnPassant() => theme::EN_PASSANT,
+            MoveKind::Castle(_, _) => theme::CASTLE,
         }
     }
 }
@@ -60,7 +60,7 @@ impl Widget<Board> for BoardWidget {
 
                 for mv in moves {
                     let c = Self::move_color(mv);
-                    let rect = grid.rect(mv.destination()).inflate(-5.0, -5.0);
+                    let rect = grid.rect(mv.target).inflate(-5.0, -5.0);
                     ctx.stroke(rect, c, 5.0);
                 }
             }

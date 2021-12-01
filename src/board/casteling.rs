@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display};
 use std::ops::{Index, IndexMut};
 
 use druid::Data;
@@ -37,6 +38,32 @@ impl Castling {
 impl Default for Castling {
     fn default() -> Castling {
         Self { flags: [[true; 2]; 2] }
+    }
+}
+
+impl Display for Castling {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut some = false;
+        if self[(Color::White, Side::King)] {
+            write!(f, "K")?;
+            some = true;
+        }
+        if self[(Color::White, Side::Queen)] {
+            write!(f, "Q")?;
+            some = true;
+        }
+        if self[(Color::Black, Side::King)] {
+            write!(f, "k")?;
+            some = true;
+        }
+        if self[(Color::Black, Side::Queen)] {
+            write!(f, "q")?;
+            some = true;
+        }
+        if !some {
+            write!(f, "-")?;
+        }
+        Ok(())
     }
 }
 

@@ -17,8 +17,8 @@ fn main() {
         .set_window_state(druid::WindowState::RESTORED);
 
     // create the initial app state
-    // let initial_state = Board::default();
-    let initial_state = Board::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq").unwrap();
+    let initial_state = Board::default();
+    // let initial_state = Board::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq").unwrap();
 
     // start the application
     AppLauncher::with_window(main_window)
@@ -31,7 +31,8 @@ fn build_root_widget() -> impl Widget<Board> {
     // a label that will determine its text based on the current app data.
     let label = Label::new(|data: &Board, _env: &druid::Env| format!("{:?}'s move ({})", data.active, data.fullmove_number + 1));
 
-    // let white_captures = Label::new(|board: &Board, _env: &druid::Env| format!("captures: {}", board.white_captures));
+    let castling = Label::new(|board: &Board, _env: &druid::Env| format!("castling: {}", board.castling));
+    let en_passant = Label::new(|board: &Board, _env: &druid::Env| format!("en_passant: {:?}", board.en_passant));
 
     // // a textbox that modifies `name`.
     // let textbox = TextBox::new()
@@ -45,6 +46,10 @@ fn build_root_widget() -> impl Widget<Board> {
         .with_child(Label::new("Schach"))
         .with_spacer(VERTICAL_WIDGET_SPACING)
         .with_child(label)
+        .with_spacer(VERTICAL_WIDGET_SPACING)
+        .with_child(castling)
+        .with_spacer(VERTICAL_WIDGET_SPACING)
+        .with_child(en_passant)
         .with_spacer(VERTICAL_WIDGET_SPACING)
         .with_child(reset)
         .with_spacer(VERTICAL_WIDGET_SPACING)

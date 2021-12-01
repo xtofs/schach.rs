@@ -1,11 +1,11 @@
+use crate::{Color, Dir, Kind, Move, MoveKind, Piece, Square};
 use druid::{Data, Lens};
-use log::info;
+use log::{info, warn};
 use std::ops::{Index, IndexMut};
-
-use crate::{Color, Dir, Kind, Move, Piece, Square};
 
 mod casteling;
 use casteling::*;
+
 // https://en.wikipedia.org/wiki/Chess#Setup
 // https://en.wikipedia.org/wiki/Rules_of_chess
 // https://en.wikipedia.org/wiki/Chessboard
@@ -16,9 +16,9 @@ use casteling::*;
 pub struct Board {
     pieces: [[Option<Piece>; 8]; 8],
     pub active: Color,
-    castling: Castling,
-    en_passant: Option<Square>,
-    halfmove_clock: u32,
+    pub castling: Castling,
+    pub en_passant: Option<Square>,
+    pub halfmove_clock: u32,
     pub fullmove_number: u32,
 }
 
@@ -92,7 +92,7 @@ impl Board {
                 }
                 '/' => {
                     if i != 8 {
-                        eprintln!("syntax error in {}. expected '/' at {}/{} ", str, j, i)
+                        warn!("syntax error in {}. expected '/' at {}/{} ", str, j, i)
                     }
                     j += 1;
                     i = 0;
@@ -110,25 +110,36 @@ impl Board {
     }
 
     fn update_castling_elegibility(&mut self, mv: &Move) {
-        if mv.piece().kind == Kind::King {
+        if mv.piece.kind == Kind::King {
             self.castling[(self.active, Side::King)] = false;
             self.castling[(self.active, Side::Queen)] = false;
-            eprintln!("disabling casteling for {:?}", self.active);
+            info!("disabling casteling for {:?}", self.active);
         }
-        if mv.piece().kind == Kind::Rook {
-            let side = if mv.orig().file < 4 { Side::Queen } else { Side::King };
+        if mv.piece.kind == Kind::Rook {
+            let side = if mv.origin.file < 4 { Side::Queen } else { Side::King };
             self.castling[(self.active, side)] = false;
-            eprintln!("disabling casteling for {:?} on {:?} side", self.active, side);
+            info!("disabling casteling for {:?} on {:?} side", self.active, side);
         }
     }
 
     fn update_en_passant_elegibility(&mut self, mv: &Move) {
         let it = match mv {
-            Move::Move(Piece { kind: Kind::Pawn, color: _ }, orig, dest) | Move::Take(Piece { kind: Kind::Pawn, color: _ }, orig, dest, _) => {
-                // distance is 2?
-                if (orig.rank - dest.rank).abs() == 2 {
+            Move {
+                piece: Piece { kind: Kind::Pawn, color: _ },
+                origin,
+                target,
+                kind: MoveKind::Move(),
+            }
+            | Move {
+                piece: Piece { kind: Kind::Pawn, color: _ },
+                origin,
+                target,
+                kind: MoveKind::Take(_),
+            } => {
+                // is distance moved  2?
+                if (origin.rank - target.rank).abs() == 2 {
                     // the square on the same file and rank between origin and destination
-                    Some(Square::new(orig.file, (orig.rank + dest.rank).abs() / 2))
+                    Some(Square::new(origin.file, (origin.rank + target.rank).abs() / 2))
                 } else {
                     None
                 }
@@ -141,42 +152,48 @@ impl Board {
     }
 
     pub fn apply(&mut self, mv: &Move) {
-        assert_eq!(self.active, mv.player());
+        assert_eq!(self.active, mv.piece.color);
+
+        let opponent = -self.active;
+        let Move { piece, origin, target, kind } = *mv;
+        match kind {
+            MoveKind::Move() => {
+                self[origin] = None;
+                self[target] = Some(piece);
+            }
+            MoveKind::Take(_kind) => {
+                assert_eq!(self[target], Some(Piece::new(opponent, _kind)));
+                info!("captured {:?}", self[target]);
+
+                self[origin] = None;
+                self[target] = Some(piece);
+            }
+            MoveKind::EnPassant() => {
+                let passed = Square::new(target.file, origin.rank);
+                assert_eq!(self[passed], Some(Piece::new(opponent, Kind::Pawn)));
+                info!("captured en passant {:?}", self[passed]);
+
+                self[passed] = None;
+                self[origin] = None;
+                self[target] = Some(piece);
+            }
+            MoveKind::Castle(rook_origin, rook_target) => {
+                assert_eq!(self[origin], Some(Piece::new(self.active, Kind::King)));
+                assert_eq!(self[rook_origin], Some(Piece::new(self.active, Kind::Rook)));
+
+                self[rook_target] = self[rook_origin];
+                self[rook_origin] = None;
+                self[origin] = None;
+                self[target] = Some(piece);
+            }
+        }
 
         self.update_en_passant_elegibility(mv);
         self.update_castling_elegibility(mv);
 
-        self.active = -self.active;
         self.halfmove_clock += 1;
-        self.fullmove_number += if mv.player() == Color::Black { 1 } else { 0 };
-
-        match *mv {
-            Move::Move(piece, orig, dest) => {
-                self[orig] = None;
-                self[dest] = Some(piece);
-            }
-            Move::Take(piece, orig, dest, _kind) => {
-                eprintln!("captured {:?}", self[dest]);
-
-                self[orig] = None;
-                self[dest] = Some(piece);
-            }
-            Move::EnPassant(piece, orig, dest) => {
-                let passed = Square::new(dest.file, orig.rank);
-
-                eprintln!("captured en passant {:?}", self[passed]);
-
-                self[orig] = None;
-                self[dest] = Some(piece);
-                self[passed] = None;
-            }
-            Move::Castle(_piece, king_src, kind_dst, rook_src, rook_dst) => {
-                self[rook_dst] = self[rook_src];
-                self[rook_src] = None;
-                self[kind_dst] = self[king_src];
-                self[king_src] = None;
-            }
-        }
+        self.fullmove_number += if mv.piece.color == Color::Black { 1 } else { 0 };
+        self.active = -self.active;
     }
 
     /// get the valid moves of the piece on given square
@@ -205,12 +222,12 @@ impl Board {
                 Some(Piece { color, kind }) if color == opponent => {
                     // take opponents piece
                     // Piece, Square, Square, Kind),
-                    let mv = Move::Take(piece, square, target, kind);
+                    let mv = Move::new_take(piece, square, target, kind);
                     result.push(mv);
                 }
                 None => {
                     // move to empty square
-                    let mv = Move::Move(piece, square, target);
+                    let mv = Move::new_move(piece, square, target);
                     result.push(mv);
                 }
                 _ => {}
@@ -235,11 +252,11 @@ impl Board {
         for dest in valid_squares(&[origin + Dir(1, fwd), origin + Dir(-1, fwd)]) {
             match self[dest] {
                 Some(take) if take.color == opponent => {
-                    result.push(Move::Take(piece, origin, dest, take.kind));
+                    result.push(Move::new_take(piece, origin, dest, take.kind));
                 }
                 // dest is empty and the en_passant target
                 None if self.en_passant == Some(dest) => {
-                    result.push(Move::EnPassant(piece, origin, dest));
+                    result.push(Move::new_en_passant(piece, origin, dest));
                 }
                 _ => {}
             }
@@ -250,13 +267,13 @@ impl Board {
         if origin.rank == starting_rank {
             let target = origin + straight_fwd * 2;
             if target.valid() && self[target].is_none() {
-                result.push(Move::Move(piece, origin, target));
+                result.push(Move::new_move(piece, origin, target));
             }
         }
         // regular move straight
         let target = origin + straight_fwd;
         if target.valid() && self[target].is_none() {
-            result.push(Move::Move(piece, origin, target));
+            result.push(Move::new_move(piece, origin, target));
         }
 
         // let final_rank = if piece.color == Color::White { 0 } else { 7 };
@@ -319,8 +336,8 @@ impl Board {
         let r_src = Square::new(rook_src_file, rank);
         let r_dst = Square::new(rook_dst_file, rank);
         if !self.is_under_attack(k_src, opponent) && !self.is_under_attack(k_dst, opponent) && !self.is_under_attack(k_thr, opponent) {
-            let mc = Move::Castle(piece, k_src, k_dst, r_src, r_dst);
-            eprintln!("casteling {:?} possible", mc);
+            let mc = Move::new_castle(piece, k_src, k_dst, r_src, r_dst);
+            info!("casteling {:?} possible", mc);
             return Some(mc);
         }
         None
@@ -356,7 +373,7 @@ impl Board {
             match self[target] {
                 // opponents piece -> take it and stop moving in this direction
                 Some(Piece { kind, color }) if color == opponent => {
-                    result.push(Move::Take(piece, start, target, kind));
+                    result.push(Move::new_take(piece, start, target, kind));
                     break;
                 }
                 // own piece -> stop moving in this direction
@@ -365,7 +382,7 @@ impl Board {
                 }
                 // move to empty square and keep going
                 None => {
-                    result.push(Move::Move(piece, start, target));
+                    result.push(Move::new_move(piece, start, target));
                 }
             }
         }
