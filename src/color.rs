@@ -1,7 +1,7 @@
 use druid::Data;
 use std::ops::Neg;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Data)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Data)]
 pub enum Color {
     White,
     Black,

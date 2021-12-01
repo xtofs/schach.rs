@@ -11,15 +11,7 @@ pub struct Castling {
 
 impl Castling {
     fn none() -> Self {
-        Castling {
-            flags: [[false; 2]; 2],
-        }
-    }
-
-    pub fn new() -> Self {
-        Castling {
-            flags: [[true; 2]; 2],
-        }
+        Castling { flags: [[false; 2]; 2] }
     }
 
     pub(crate) fn from_fen(text: &str) -> Option<Self> {
@@ -44,9 +36,7 @@ impl Castling {
 
 impl Default for Castling {
     fn default() -> Castling {
-        Self {
-            flags: [[true; 2]; 2],
-        }
+        Self { flags: [[true; 2]; 2] }
     }
 }
 

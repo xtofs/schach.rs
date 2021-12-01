@@ -4,7 +4,11 @@ use std::fmt::{Debug, Display};
 
 use crate::{Color, Kind};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Data, Lens)]
+// https://en.wikipedia.org/wiki/Chess_piece_relative_value
+
+/// a chess piece identified by it's color and kind
+/// https://en.wikipedia.org/wiki/Chess_piece
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Data, Lens)]
 pub struct Piece {
     pub color: Color,
     pub kind: Kind,
