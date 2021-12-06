@@ -1,6 +1,7 @@
-use druid::widget::{Align, Button, Flex, Label};
-use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
+use druid::widget::{Button, Flex, Label};
+use druid::{AppLauncher, Color, Env, LocalizedString, Widget, WidgetExt, WindowDesc};
 use schach::{Board, BoardWidget};
+
 
 fn main() {
     stderrlog::new().module(module_path!()).verbosity(4).init().expect("log setup failed");
@@ -17,11 +18,27 @@ fn main() {
     let initial_state = Board::default();
     // let initial_state = Board::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq").unwrap();
 
-    // start the application
+    // start the application 
     AppLauncher::with_window(main_window)
         // .use_simple_logger()
+        .configure_env(configure_env)
         .launch(initial_state)
         .expect("Failed to launch application");
+}
+
+
+
+fn configure_env(env: &mut Env, _board: &Board)
+{
+    env.set(schach::theme::GRID_LINE, Color::rgb8(0x40, 0x40, 0x40));
+    env.set(schach::theme::LIGHT, Color::rgb8(128, 128, 128));
+    env.set(schach::theme::DARK, Color::rgb8(192, 192, 192));
+    env.set(schach::theme::LINE, Color::rgb8(96, 96, 96)); 
+    env.set(schach::theme::SELECTED, Color::rgb8(64, 255, 0));
+    env.set(schach::theme::MOVE, Color::rgb8(255, 255, 0));
+    env.set(schach::theme::TAKE, Color::rgb8(255, 0, 0));
+    env.set(schach::theme::EN_PASSANT, Color::rgb8(255, 128, 0));
+    env.set(schach::theme::CASTLE, Color::rgb8(255, 192, 0));
 }
 
 const VERTICAL_WIDGET_SPACING: f64 = 20.0;

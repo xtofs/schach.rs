@@ -2,6 +2,7 @@
 #![feature(if_let_guard)]
 #![feature(iter_intersperse)]
 #![feature(option_get_or_insert_default)]
+#![feature(const_generics_defaults)]
 
 #[macro_use]
 extern crate lazy_static;
